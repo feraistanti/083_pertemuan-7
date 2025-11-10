@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Create API Key</title>
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--muted:#9aa4b2;--accent:#7c3aed}
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#071029 0%,#071530 100%);color:#e6eef8}
+    .container{max-width:820px;margin:48px auto;padding:28px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+    h1{margin:0 0 8px;font-size:22px}
+    p.lead{margin:0 0 22px;color:var(--muted)}
+    label{display:block;font-size:13px;margin-bottom:6px;color:#dbe9ff}
+    input[type=text],input[type=date],select,textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit;font-size:14px}
+    .row{display:flex;gap:12px}
+    .col{flex:1}
+    .permissions{display:flex;flex-wrap:wrap;gap:10px}
+    .chip{display:flex;align-items:center;padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.04);cursor:pointer}
+    .chip input{margin-right:8px}
+    .actions{display:flex;gap:8px;align-items:center;margin-top:14px}
+    button{background:var(--accent);border:none;padding:10px 14px;border-radius:10px;color:white;font-weight:600;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    .result{margin-top:18px;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(124,58,237,0.08), rgba(124,58,237,0.03));border:1px solid rgba(124,58,237,0.08)}
+    .key{font-family:monospace;background:rgba(255,255,255,0.03);padding:8px;border-radius:6px;word-break:break-all}
+    .hint{font-size:13px;color:var(--muted);margin-top:6px}
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>Buat API Key</h1>
+    <p class="lead">Isi nama, pilih izin, dan (opsional) atur tanggal kedaluwarsa. Klik "Buat API Key" untuk menghasilkan kunci.</p>
+
+    <form id="createForm" onsubmit="return false;">
+      <div style="display:grid;grid-template-columns:1fr 240px;gap:12px;align-items:end;">
+        <div>
+          <label for="name">Nama key</label>
+          <input id="name" name="name" type="text" placeholder="Mis. web-client-1" required />
+        </div>
+        <div>
+          <label for="expires">Kedaluwarsa (opsional)</label>
+          <input id="expires" name="expires" type="date" />
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>Izin (permissions)</label>
+        <div class="permissions" id="permissions">
+          <label class="chip"><input type="checkbox" name="perm" value="read"> Read</label>
+          <label class="chip"><input type="checkbox" name="perm" value="write"> Write</label>
+          <label class="chip"><input type="checkbox" name="perm" value="delete"> Delete</label>
+          <label class="chip"><input type="checkbox" name="perm" value="admin"> Admin</label>
+        </div>
+        <div class="hint">Pilih izin seminimal mungkin untuk keamanan.</div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label for="notes">Catatan (opsional)</label>
+        <textarea id="notes" name="notes" rows="3" placeholder="Keterangan singkat..."></textarea>
+      </div>
+
+      <div class="actions">
+        <button id="createBtn">Buat API Key</button>
+        <button type="button" class="ghost" id="resetBtn">Reset</button>
+        <div style="margin-left:auto;color:var(--muted);font-size:13px">Keamanan: simpan kunci hanya di tempat aman.</div>
+      </div>
+
+    </form>
+
+    <div id="output" class="result" style="display:none">
+      <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:13px;color:var(--muted)">API Key (sekali lihat)</div>
+          <div id="apikey" class="key">—</div>
+          <div id="meta" class="hint"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+          <button id="copyBtn">Salin</button>
+          <button id="revokeBtn" class="ghost">Batal / Revoke</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // Simple client-side demo. Ganti endpoint dan behavior sesuai backend Anda.
+    const createBtn = document.getElementById('createBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const output = document.getElementById('output');
+    const apikeyEl = document.getElementById('apikey');
+    const metaEl = document.getElementById('meta');
+    const copyBtn = document.getElementById('copyBtn');
+    const revokeBtn = document.getElementById('revokeBtn');
+
+    function generateClientKey() {
+      // contoh: prefix + random base64-like string (NOT secure enough for production)
+      const prefix = 'sk_';
+      const rand = crypto.getRandomValues(new Uint8Array(32));
+      const str = Array.from(rand).map(b => ('0' + b.toString(16)).slice(-2)).join('');
+      return prefix + str;
+    }
+
+    createBtn.addEventListener('click', async () => {
+      const name = document.getElementById('name').value.trim();
+      if (!name) return alert('Nama key harus diisi');
+
+      const expires = document.getElementById('expires').value || null;
+      const notes = document.getElementById('notes').value.trim() || null;
+      const perms = Array.from(document.querySelectorAll('input[name="perm"]:checked')).map(c=>c.value);
+
+      createBtn.disabled = true; createBtn.textContent = 'Membuat...';
+
+      try {
+        // Jika Anda memiliki backend, ganti bagian ini dengan `fetch('/api/apikeys', {method:'POST', body: JSON.stringify({...})})`
+        // Demo: kita _generate_ key di client dan tampilkan.
+        await new Promise(r => setTimeout(r, 600)); // simulasi delay
+        const key = generateClientKey();
+
+        // Tampilkan hasil
+        apikeyEl.textContent = key;
+        metaEl.textContent = `Nama: ${name}${perms.length? ' • Izin: ' + perms.join(', '): ''}${expires? ' • Kedaluwarsa: ' + expires : ''}`;
+        output.style.display = 'block';
+
+        // NOTE: production: jangan simpan secret di client-side; kirim ke backend yang menyimpan hashed/encoded value.
+      } catch (err) {
+        alert('Gagal membuat API key: ' + err.message);
+      } finally {
+        createBtn.disabled = false; createBtn.textContent = 'Buat API Key';
+      }
+    });
+
+    resetBtn.addEventListener('click', ()=>{
+      document.getElementById('createForm').reset();
+      output.style.display = 'none';
+      apikeyEl.textContent = '—';
+      metaEl.textContent = '';
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      const key = apikeyEl.textContent;
+      if (!key || key === '—') return;
+      try {
+        await navigator.clipboard.writeText(key);
+        copyBtn.textContent = 'Disalin!';
+        setTimeout(()=> copyBtn.textContent = 'Salin', 1500);
+      } catch (e) {
+        alert('Tidak dapat menyalin: ' + e.message);
+      }
+    });
+
+    revokeBtn.addEventListener('click', ()=>{
+      if (!confirm('Yakin ingin membatalkan (revoke) key ini dari UI demo?')) return;
+      // Di production, panggil endpoint revoke di server.
+      output.style.display = 'none';
+      apikeyEl.textContent = '—';
+      metaEl.textContent = '';
+      alert('Key dibatalkan (demo). Pastikan memanggil backend untuk revoke sebenarnya.');
+    });
+  </script>
+</body>
+</html>
